@@ -1,0 +1,2536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mancala (Kalah) — Monte Carlo Tree Search AI</title>
+  <style>
+    /* =========================================================================
+       EYE-COMFORT ACCESSIBILITY & STRICT ZERO-FADE / ZERO-FLASH SYSTEM
+       - Matte charcoal background (#121417), elevated panels (#1b1f24),
+         crisp solid borders (#2e353e), and rich walnut board (#3b2618).
+       - Zero @keyframes, zero transitions, zero pulsing, zero opacity dimming.
+       ========================================================================= */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      animation: none !important;
+      transition: none !important;
+    }
+
+    :root {
+      --bg-page: #121417;
+      --bg-panel: #1b1f24;
+      --bg-subpanel: #15181d;
+      --bg-muted: #232830;
+      --border-crisp: #2e353e;
+      --border-strong: #46505e;
+      --text-primary: #f1f5f9;
+      --text-secondary: #cbd5e1;
+      --text-muted: #64748b;
+
+      --board-walnut: #3b2618;
+      --board-trim: #5c3d28;
+      --well-bg: #22150c;
+      --well-border: #4e3320;
+
+      --accent-gold: #f59e0b;
+      --accent-gold-bg: #2a2110;
+      --accent-emerald: #10b981;
+      --accent-emerald-bg: #132620;
+      --accent-sky: #38bdf8;
+      --accent-sky-bg: #122330;
+      --accent-rose: #f43f5e;
+      --accent-rose-bg: #2c141c;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-page);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.4;
+      min-height: 100vh;
+    }
+
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .app-shell {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 12px 14px 20px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* =========================================================================
+       TOP HEADER & SIMULATION BUDGET CONTROLS
+       ========================================================================= */
+    .header-bar {
+      background-color: var(--bg-panel);
+      border: 1.5px solid var(--border-crisp);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .title-cluster {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .emblem {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background-color: var(--board-walnut);
+      border: 1.5px solid var(--accent-gold);
+      color: #fde68a;
+      font-weight: 800;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .app-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      color: var(--text-primary);
+      letter-spacing: 0.2px;
+    }
+
+    .app-subtitle {
+      margin: 0;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+    }
+
+    .toolbar-cluster {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .seg-group {
+      display: inline-flex;
+      align-items: center;
+      background-color: var(--bg-subpanel);
+      border: 1.5px solid var(--border-crisp);
+      border-radius: 8px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .seg-prefix {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      padding: 0 7px;
+    }
+
+    .seg-btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background-color: transparent;
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .seg-btn:hover:not(:disabled) {
+      background-color: #262c36;
+      color: #ffffff;
+    }
+
+    .seg-btn.active {
+      background-color: var(--accent-gold-bg);
+      border-color: var(--accent-gold);
+      color: #fde68a;
+    }
+
+    .seg-btn:disabled {
+      background-color: var(--bg-muted);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1.5px solid var(--border-strong);
+      background-color: #232933;
+      color: var(--text-primary);
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+    }
+
+    .btn:hover:not(:disabled) {
+      border-color: var(--accent-gold);
+      background-color: #2c3340;
+    }
+
+    .btn:disabled {
+      background-color: var(--bg-muted);
+      border-color: var(--border-crisp);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+
+    .btn-gold {
+      background-color: var(--accent-gold-bg);
+      border-color: var(--accent-gold);
+      color: #fde68a;
+    }
+
+    .btn-gold:hover:not(:disabled) {
+      background-color: #3b2e14;
+    }
+
+    .btn-sky {
+      background-color: var(--accent-sky-bg);
+      border-color: var(--accent-sky);
+      color: #bae6fd;
+    }
+
+    .btn-sky:hover:not(:disabled) {
+      background-color: #173142;
+    }
+
+    /* =========================================================================
+       TURN STATUS & HOVER TRAJECTORY BANNER
+       ========================================================================= */
+    .status-banner {
+      background-color: var(--bg-panel);
+      border: 1.5px solid var(--border-crisp);
+      border-radius: 10px;
+      padding: 8px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .status-main {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .turn-pip {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      flex-shrink: 0;
+    }
+
+    .pip-human { background-color: var(--accent-sky); }
+    .pip-ai    { background-color: var(--accent-emerald); }
+    .pip-gold  { background-color: var(--accent-gold); }
+
+    .hover-readout {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: #fde68a;
+      background-color: var(--bg-subpanel);
+      border: 1px solid var(--border-crisp);
+      padding: 3px 9px;
+      border-radius: 6px;
+    }
+
+    /* =========================================================================
+       RICH WALNUT MANCALA (KALAH) BOARD
+       Top Row (Left to Right): F1 (12), F2 (11), F3 (10), F4 (9), F5 (8), F6 (7)
+       Bottom Row (Left to Right): P1 (0), P2 (1), P3 (2), P4 (3), P5 (4), P6 (5)
+       Left Store: AI (13) | Right Store: YOU (6)
+       ========================================================================= */
+    .board-outer {
+      background-color: var(--board-walnut);
+      border: 3px solid var(--board-trim);
+      border-radius: 16px;
+      padding: 12px 14px;
+    }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: 96px 1fr 96px;
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    .store-well {
+      background-color: var(--well-bg);
+      border: 2px solid var(--well-border);
+      border-radius: 14px;
+      padding: 8px 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 184px;
+    }
+
+    .store-ai  { border-color: var(--accent-emerald); }
+    .store-you { border-color: var(--accent-sky); }
+
+    .store-tag {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.6px;
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+
+    .store-ai .store-tag {
+      background-color: var(--accent-emerald-bg);
+      border: 1px solid var(--accent-emerald);
+      color: #6ee7b7;
+    }
+
+    .store-you .store-tag {
+      background-color: var(--accent-sky-bg);
+      border: 1px solid var(--accent-sky);
+      color: #7dd3fc;
+    }
+
+    .store-stones {
+      width: 100%;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 4px 0;
+    }
+
+    .score-pill {
+      font-size: 15px;
+      font-weight: 800;
+      padding: 2px 10px;
+      border-radius: 6px;
+      background-color: #121417;
+      border: 1.5px solid var(--border-strong);
+      color: #ffffff;
+    }
+
+    .center-pits {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .side-caption {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 4px;
+    }
+
+    .caption-ai  { color: #6ee7b7; }
+    .caption-you { color: #7dd3fc; }
+
+    .pit-row {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+    }
+
+    .pit-well {
+      background-color: var(--well-bg);
+      border: 2px solid var(--well-border);
+      border-radius: 12px;
+      padding: 6px 4px;
+      min-height: 84px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+
+    .pit-well.pit-empty {
+      background-color: #1b120b;
+      border-color: #3a2618;
+    }
+
+    .pit-well.pit-empty .pit-code,
+    .pit-well.pit-empty .pit-num {
+      background-color: var(--bg-muted);
+      border-color: var(--border-crisp);
+      color: var(--text-muted);
+    }
+
+    .pit-code {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #e2e8f0;
+      background-color: #2e1c10;
+      border: 1px solid #6b462b;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .pit-stones {
+      width: 100%;
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 2px 0;
+    }
+
+    .pit-num {
+      font-size: 12px;
+      font-weight: 800;
+      color: #fde68a;
+      background-color: #15181d;
+      border: 1px solid #46505e;
+      padding: 0 8px;
+      border-radius: 4px;
+    }
+
+    /* Interactive & Highlight Pit States (100% Solid Borders — Zero Opacity) */
+    .pit-playable {
+      cursor: pointer;
+      border-color: #b45309;
+    }
+
+    .pit-playable:hover {
+      border-color: var(--accent-gold);
+      background-color: #2e1c0f;
+    }
+
+    .pit-path {
+      border-style: dashed !important;
+      border-color: var(--accent-sky) !important;
+    }
+
+    .pit-landing {
+      border-style: solid !important;
+      border-color: var(--accent-emerald) !important;
+      background-color: var(--accent-emerald-bg) !important;
+    }
+
+    .pit-extra {
+      border-style: solid !important;
+      border-color: var(--accent-gold) !important;
+      background-color: var(--accent-gold-bg) !important;
+    }
+
+    .pit-capture {
+      border-style: solid !important;
+      border-color: var(--accent-rose) !important;
+      background-color: var(--accent-rose-bg) !important;
+    }
+
+    .pit-sow-step {
+      border-style: solid !important;
+      border-color: #fde047 !important;
+      background-color: #36290e !important;
+    }
+
+    .pit-inspected {
+      border-style: solid !important;
+      border-color: #ffffff !important;
+      background-color: #262e3a !important;
+    }
+
+    /* =========================================================================
+       UNCAPPED FULL-TREE MCTS VISUALIZER (ONE-SCREEN FIT + COMPACT MICRO-NODES)
+       ========================================================================= */
+    .tree-panel {
+      background-color: var(--bg-panel);
+      border: 1.5px solid var(--border-crisp);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .tree-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid var(--border-crisp);
+    }
+
+    .tree-title-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-heading {
+      margin: 0;
+      font-size: 13.5px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #fde68a;
+    }
+
+    .telemetry-pills {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .t-pill {
+      font-size: 11px;
+      font-weight: 700;
+      background-color: var(--bg-subpanel);
+      border: 1px solid var(--border-strong);
+      color: var(--text-secondary);
+      padding: 2px 8px;
+      border-radius: 5px;
+    }
+
+    .t-pill strong {
+      color: #ffffff;
+    }
+
+    .tree-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .legend-items {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .legend-key {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 700;
+    }
+
+    .swatch-box {
+      width: 11px;
+      height: 11px;
+      border-radius: 2px;
+      border-width: 1.5px;
+      border-style: solid;
+      display: inline-block;
+    }
+
+    /* Breadcrumb Bar for Subtree Focusing */
+    .breadcrumb-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background-color: var(--bg-subpanel);
+      border: 1px solid var(--border-crisp);
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-size: 11.5px;
+    }
+
+    .crumb-trail {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .crumb-btn {
+      appearance: none;
+      background-color: #232830;
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .crumb-btn:hover {
+      border-color: var(--accent-gold);
+    }
+
+    .crumb-btn.current {
+      background-color: var(--accent-gold-bg);
+      border-color: var(--accent-gold);
+      color: #fde68a;
+    }
+
+    /* Live Node Inspector Bar */
+    .inspector-bar {
+      background-color: var(--bg-subpanel);
+      border: 1.5px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 7px 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+
+    .inspector-fields {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-secondary);
+    }
+
+    .inspector-fields strong {
+      color: #ffffff;
+    }
+
+    .inspector-tag {
+      background-color: var(--accent-gold-bg);
+      border: 1px solid var(--accent-gold);
+      color: #fde68a;
+      font-weight: 800;
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* One-Screen Tree Viewport */
+    .tree-viewport {
+      width: 100%;
+      height: 430px;
+      overflow: auto;
+      background-color: var(--bg-subpanel);
+      border: 1.5px solid var(--border-crisp);
+      border-radius: 8px;
+      position: relative;
+      padding: 8px;
+    }
+
+    .tree-empty-msg {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--text-secondary);
+      font-size: 12.5px;
+      font-weight: 600;
+      padding: 20px;
+    }
+
+    /* Compact Micro-Nodes (64px wide x 36px tall, 1.5px solid borders) */
+    .micro-node {
+      position: absolute;
+      width: 64px;
+      height: 36px;
+      border-width: 1.5px;
+      border-style: solid;
+      border-radius: 5px;
+      padding: 2px 3px;
+      cursor: pointer;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    .node-root {
+      background-color: #252b33;
+      border-color: #cbd5e1;
+      color: #f8fafc;
+    }
+
+    .node-ai {
+      background-color: var(--accent-emerald-bg);
+      border-color: var(--accent-emerald);
+      color: #ecfdf5;
+    }
+
+    .node-human {
+      background-color: var(--accent-sky-bg);
+      border-color: var(--accent-sky);
+      color: #f0f9ff;
+    }
+
+    .node-pv {
+      background-color: var(--accent-gold-bg) !important;
+      border-color: var(--accent-gold) !important;
+      color: #fef3c7 !important;
+    }
+
+    .micro-node:hover {
+      outline: 1.5px solid #fde047;
+      outline-offset: 1px;
+    }
+
+    .micro-node.selected {
+      outline: 2px solid #ffffff;
+      outline-offset: 1px;
+    }
+
+    .mn-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      line-height: 1.15;
+      white-space: nowrap;
+    }
+
+    .mn-move {
+      font-size: 9.5px;
+      font-weight: 800;
+    }
+
+    .mn-win {
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .mn-visits {
+      font-size: 8.5px;
+      color: #cbd5e1;
+    }
+
+    .mn-badge {
+      font-size: 8.5px;
+      font-weight: 800;
+    }
+
+    .badge-extra { color: #fbbf24; }
+    .badge-cap   { color: #fb7185; }
+    .badge-score { color: #94a3b8; }
+
+    /* =========================================================================
+       BOTTOM GRID: ROOT CANDIDATE MOVES & CHRONOLOGICAL MATCH LOG
+       ========================================================================= */
+    .bottom-split {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 10px;
+    }
+
+    .panel-box {
+      background-color: var(--bg-panel);
+      border: 1.5px solid var(--border-crisp);
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .panel-subhead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      border-bottom: 1.5px solid var(--border-crisp);
+    }
+
+    .cand-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 7px;
+    }
+
+    .cand-card {
+      background-color: var(--bg-subpanel);
+      border: 1px solid var(--border-crisp);
+      border-radius: 7px;
+      padding: 6px 8px;
+      font-size: 11.5px;
+    }
+
+    .cand-card.best {
+      border-color: var(--accent-gold);
+      background-color: var(--accent-gold-bg);
+    }
+
+    .cand-line {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+
+    .bar-bg {
+      width: 100%;
+      height: 6px;
+      background-color: #0e1013;
+      border: 1px solid var(--border-crisp);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background-color: var(--accent-sky);
+    }
+
+    .cand-card.best .bar-fill {
+      background-color: var(--accent-gold);
+    }
+
+    .log-feed {
+      max-height: 170px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .log-row {
+      background-color: var(--bg-subpanel);
+      border: 1px solid var(--border-crisp);
+      border-left: 3px solid var(--border-strong);
+      border-radius: 5px;
+      padding: 5px 8px;
+      font-size: 11.5px;
+      color: var(--text-primary);
+    }
+
+    .log-row.human  { border-left-color: var(--accent-sky); }
+    .log-row.ai     { border-left-color: var(--accent-emerald); }
+    .log-row.system { border-left-color: var(--accent-gold); }
+
+    /* =========================================================================
+       SOLID OPAQUE MODALS (ZERO TRANSPARENCY / ZERO FADE)
+       ========================================================================= */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background-color: #0b0d0f;
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      background-color: var(--bg-panel);
+      border: 2px solid var(--accent-gold);
+      border-radius: 12px;
+      max-width: 540px;
+      width: 100%;
+      padding: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-card h2 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      color: #fde68a;
+    }
+
+    .modal-card p, .modal-card li {
+      font-size: 12.5px;
+      color: var(--text-secondary);
+      margin-bottom: 7px;
+    }
+
+    .modal-card ul {
+      padding-left: 18px;
+      margin: 6px 0 14px 0;
+    }
+
+    .final-boxes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 14px 0;
+    }
+
+    .final-box {
+      background-color: var(--bg-subpanel);
+      border: 1.5px solid var(--border-strong);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+
+    /* =========================================================================
+       RESPONSIVE BREAKPOINTS
+       ========================================================================= */
+    @media (max-width: 920px) {
+      .bottom-split {
+        grid-template-columns: 1fr;
+      }
+      .tree-viewport {
+        height: 360px;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .board-grid {
+        grid-template-columns: 68px 1fr 68px;
+        gap: 6px;
+      }
+      .pit-row {
+        gap: 4px;
+      }
+      .pit-well {
+        min-height: 74px;
+        padding: 4px 2px;
+      }
+      .store-well {
+        min-height: 160px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+
+    <!-- =======================================================================
+         HEADER & SIMULATION BUDGET CONTROLS
+         ======================================================================= -->
+    <header class="header-bar">
+      <div class="title-cluster">
+        <div class="emblem">M</div>
+        <div>
+          <h1 class="app-title">Mancala (Kalah) — Minimax-UCB1 MCTS</h1>
+          <p class="app-subtitle">Uncapped Full-Tree Visualizer • Zero-Fade Matte Charcoal Accessibility</p>
+        </div>
+      </div>
+
+      <div class="toolbar-cluster">
+        <!-- Simulation Budget Selector: 300, 1,000, 2,500, 5,000 -->
+        <div class="seg-group" role="group" aria-label="Simulation Budget">
+          <span class="seg-prefix">Sims:</span>
+          <button type="button" class="seg-btn budget-btn" data-sims="300">300 Fast</button>
+          <button type="button" class="seg-btn budget-btn active" data-sims="1000">1,000 Balanced</button>
+          <button type="button" class="seg-btn budget-btn" data-sims="2500">2,500 Strong</button>
+          <button type="button" class="seg-btn budget-btn" data-sims="5000">5,000 Deep</button>
+        </div>
+
+        <button type="button" id="btn-analyze" class="btn btn-sky" title="Run MCTS from your turn to inspect best moves">
+          Analyze My Turn
+        </button>
+
+        <button type="button" id="btn-undo" class="btn" disabled title="Undo back to your previous turn">
+          Undo
+        </button>
+
+        <button type="button" id="btn-sound" class="btn" title="Toggle synthesized wood click audio">
+          Sound: On
+        </button>
+
+        <button type="button" id="btn-rules" class="btn">
+          Rules
+        </button>
+
+        <button type="button" id="btn-new" class="btn btn-gold">
+          New Game
+        </button>
+      </div>
+    </header>
+
+    <!-- =======================================================================
+         STATUS & HOVER TRAJECTORY BANNER
+         ======================================================================= -->
+    <div class="status-banner" role="status" aria-live="polite">
+      <div class="status-main">
+        <span id="turn-pip" class="turn-pip pip-human"></span>
+        <span id="status-msg">Your Turn — Click any pit P1–P6 on the bottom row to sow counter-clockwise.</span>
+      </div>
+      <div id="hover-readout" class="hover-readout">
+        Hover any legal pit P1–P6 to preview path, extra turns &amp; captures
+      </div>
+    </div>
+
+    <!-- =======================================================================
+         RICH WALNUT MANCALA (KALAH) BOARD
+         Counter-clockwise order: 0(P1)->1(P2)->2(P3)->3(P4)->4(P5)->5(P6)->6(YOU)
+                                  ->7(F6)->8(F5)->9(F4)->10(F3)->11(F2)->12(F1)->13(AI)->0
+         Top row left-to-right: F1(12), F2(11), F3(10), F4(9), F5(8), F6(7)
+         Bottom row left-to-right: P1(0), P2(1), P3(2), P4(3), P5(4), P6(5)
+         ======================================================================= -->
+    <main class="board-outer">
+      <div class="board-grid">
+
+        <!-- AI Store (Index 13, Left Side) -->
+        <div id="pit-13" class="store-well store-ai">
+          <span class="store-tag mono">AI</span>
+          <div id="stones-13" class="store-stones"></div>
+          <span id="count-13" class="score-pill mono">0</span>
+        </div>
+
+        <!-- Center 12 Pits -->
+        <div class="center-pits">
+          <div class="side-caption caption-ai">
+            <span>&larr; Counter-Clockwise AI Side (F6 &rarr; F1)</span>
+            <span>AI Pits</span>
+          </div>
+
+          <!-- Top Row: F1(12) above P1(0) ... F6(7) above P6(5) -->
+          <div class="pit-row">
+            <div id="pit-12" class="pit-well">
+              <span class="pit-code mono">F1</span>
+              <div id="stones-12" class="pit-stones"></div>
+              <span id="count-12" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-11" class="pit-well">
+              <span class="pit-code mono">F2</span>
+              <div id="stones-11" class="pit-stones"></div>
+              <span id="count-11" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-10" class="pit-well">
+              <span class="pit-code mono">F3</span>
+              <div id="stones-10" class="pit-stones"></div>
+              <span id="count-10" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-9" class="pit-well">
+              <span class="pit-code mono">F4</span>
+              <div id="stones-9" class="pit-stones"></div>
+              <span id="count-9" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-8" class="pit-well">
+              <span class="pit-code mono">F5</span>
+              <div id="stones-8" class="pit-stones"></div>
+              <span id="count-8" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-7" class="pit-well">
+              <span class="pit-code mono">F6</span>
+              <div id="stones-7" class="pit-stones"></div>
+              <span id="count-7" class="pit-num mono">4</span>
+            </div>
+          </div>
+
+          <!-- Bottom Row: P1(0) .. P6(5) -->
+          <div class="pit-row">
+            <div id="pit-0" class="pit-well pit-playable">
+              <span class="pit-code mono">P1</span>
+              <div id="stones-0" class="pit-stones"></div>
+              <span id="count-0" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-1" class="pit-well pit-playable">
+              <span class="pit-code mono">P2</span>
+              <div id="stones-1" class="pit-stones"></div>
+              <span id="count-1" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-2" class="pit-well pit-playable">
+              <span class="pit-code mono">P3</span>
+              <div id="stones-2" class="pit-stones"></div>
+              <span id="count-2" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-3" class="pit-well pit-playable">
+              <span class="pit-code mono">P4</span>
+              <div id="stones-3" class="pit-stones"></div>
+              <span id="count-3" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-4" class="pit-well pit-playable">
+              <span class="pit-code mono">P5</span>
+              <div id="stones-4" class="pit-stones"></div>
+              <span id="count-4" class="pit-num mono">4</span>
+            </div>
+            <div id="pit-5" class="pit-well pit-playable">
+              <span class="pit-code mono">P6</span>
+              <div id="stones-5" class="pit-stones"></div>
+              <span id="count-5" class="pit-num mono">4</span>
+            </div>
+          </div>
+
+          <div class="side-caption caption-you">
+            <span>Your Pits</span>
+            <span>Counter-Clockwise Your Side (P1 &rarr; P6) &rarr;</span>
+          </div>
+        </div>
+
+        <!-- Human Store (Index 6, Right Side) -->
+        <div id="pit-6" class="store-well store-you">
+          <span class="store-tag mono">YOU</span>
+          <div id="stones-6" class="store-stones"></div>
+          <span id="count-6" class="score-pill mono">0</span>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- =======================================================================
+         UNCAPPED FULL-TREE MCTS VISUALIZER (ONE-SCREEN FIT + COMPACT NODES)
+         ======================================================================= -->
+    <section class="tree-panel" aria-label="Uncapped Full-Tree MCTS Visualizer">
+      <div class="tree-header">
+        <div class="tree-title-group">
+          <h2 class="panel-heading">Full MCTS Search Tree</h2>
+          <div class="telemetry-pills mono">
+            <span id="pill-depth" class="t-pill">Max Depth: <strong>0 plies</strong></span>
+            <span id="pill-nodes" class="t-pill">Nodes Shown: <strong>0 / 0</strong></span>
+            <span id="pill-sims" class="t-pill">Simulations: <strong>0</strong></span>
+            <span id="pill-win" class="t-pill">AI Win Est: <strong>—</strong></span>
+          </div>
+        </div>
+
+        <div class="tree-controls">
+          <!-- Min-Visit Filter Toggles -->
+          <div class="seg-group" role="group" aria-label="Minimum Visits Filter">
+            <span class="seg-prefix">Filter:</span>
+            <button type="button" class="seg-btn filter-btn active" data-minv="1">All Nodes</button>
+            <button type="button" class="seg-btn filter-btn" data-minv="2">N&ge;2</button>
+            <button type="button" class="seg-btn filter-btn" data-minv="5">N&ge;5</button>
+            <button type="button" class="seg-btn filter-btn" data-minv="15">N&ge;15</button>
+          </div>
+
+          <!-- Zoom Controls (Default: Fit Screen) -->
+          <div class="seg-group" role="group" aria-label="Tree Zoom">
+            <span class="seg-prefix">Zoom:</span>
+            <button type="button" class="seg-btn zoom-btn active" data-zoom="fit">Fit</button>
+            <button type="button" class="seg-btn zoom-btn" data-zoom="1">100%</button>
+            <button type="button" class="seg-btn zoom-btn" data-zoom="0.75">75%</button>
+            <button type="button" class="seg-btn zoom-btn" data-zoom="0.5">50%</button>
+            <button type="button" class="seg-btn zoom-btn" data-zoom="0.35">35%</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Color Legend & Interaction Hint -->
+      <div class="legend-strip">
+        <div class="legend-items">
+          <span class="legend-key"><span class="swatch-box" style="background:#2a2110; border-color:#f59e0b;"></span> Principal Variation (Best Path)</span>
+          <span class="legend-key"><span class="swatch-box" style="background:#132620; border-color:#10b981;"></span> AI Move (F1–F6)</span>
+          <span class="legend-key"><span class="swatch-box" style="background:#122330; border-color:#38bdf8;"></span> Human Reply (P1–P6)</span>
+          <span class="legend-key"><span class="swatch-box" style="background:#252b33; border-color:#cbd5e1;"></span> Root Node</span>
+        </div>
+        <span>Click/hover node to inspect • Double-click node to re-root subtree</span>
+      </div>
+
+      <!-- Breadcrumb Trail & Focus Subtree Action -->
+      <div class="breadcrumb-bar">
+        <div id="crumb-trail" class="crumb-trail mono">
+          <span style="color:#94a3b8;">Path: Full Root</span>
+        </div>
+        <button type="button" id="btn-focus-subtree" class="btn" disabled>
+          Focus Subtree
+        </button>
+      </div>
+
+      <!-- Live Node Inspector Bar -->
+      <div class="inspector-bar">
+        <div id="inspector-fields" class="inspector-fields mono">
+          <span class="inspector-tag">INSPECTOR</span>
+          <span>Play a move or click <strong>Analyze My Turn</strong> to inspect the full MCTS tree.</span>
+        </div>
+        <div id="inspector-board-state" class="mono" style="font-size:11px; color:#fde68a; font-weight:700;">
+          AI: — | YOU: —
+        </div>
+      </div>
+
+      <!-- One-Screen Fitted Tree Viewport -->
+      <div id="tree-viewport" class="tree-viewport">
+        <div class="tree-empty-msg">
+          No search tree computed yet. Make your move or click <strong>Analyze My Turn</strong> to generate the uncapped MCTS tree.
+        </div>
+      </div>
+    </section>
+
+    <!-- =======================================================================
+         BOTTOM SPLIT: ROOT CANDIDATE MOVES & MATCH HISTORY LOG
+         ======================================================================= -->
+    <section class="bottom-split">
+      <div class="panel-box">
+        <div class="panel-subhead">
+          <h2 class="panel-heading">Root Candidate Moves</h2>
+          <span id="search-time-label" class="mono" style="font-size:11px; color:#94a3b8;">Elapsed: —</span>
+        </div>
+        <div id="cand-grid" class="cand-grid">
+          <div style="font-size:12px; color:#94a3b8; grid-column:1/-1;">
+            Root move visit shares and win-rate estimates will appear here after search.
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <div class="panel-subhead">
+          <h2 class="panel-heading">Match History</h2>
+          <span id="turn-counter" class="mono" style="font-size:11px; color:#fde68a; font-weight:700;">Turn 1</span>
+        </div>
+        <div id="log-feed" class="log-feed">
+          <div class="log-row system">Match initialized: 4 stones per pit (48 total). You move first.</div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- =========================================================================
+       SOLID OPAQUE MODAL: KALAH RULES & MCTS ARCHITECTURE
+       ========================================================================= -->
+  <div id="rules-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="rules-heading">
+    <div class="modal-card">
+      <h2 id="rules-heading">Mancala (Kalah) Rules &amp; MCTS Engine</h2>
+      <p><strong>Goal:</strong> Capture more stones in your Store (<code>YOU</code>, right) than the AI collects in its Store (<code>AI</code>, left).</p>
+      <ul>
+        <li><strong>Counter-Clockwise Sowing:</strong> Pick any non-empty pit on your side (<code>P1–P6</code>). Stones drop one-by-one counter-clockwise through <code>P1&rarr;P6&rarr;YOU&rarr;F6&rarr;F1&rarr;P1</code>, always skipping the opponent's Store.</li>
+        <li><strong>Extra Turn (<code>+1</code>):</strong> If your last stone lands directly in your own Store (<code>YOU</code>), you immediately take another turn.</li>
+        <li><strong>Cross-Board Capture (<code>CAP</code>):</strong> If your last stone lands in an empty pit on your side and the opposite AI pit (<code>12 - idx</code>) contains stones, you capture both your landing stone and all opposite stones into your Store.</li>
+        <li><strong>End-of-Game Sweep:</strong> When either side's 6 pits become empty, the other player sweeps all remaining stones on their side into their Store.</li>
+      </ul>
+      <p><strong>Minimax-UCB1 MCTS:</strong> At AI nodes, UCB1 maximizes AI win rate; at Human reply nodes, UCB1 maximizes Human win rate (<code>1 - aiWinRate</code>). Untried extra-turn moves are expanded first, and tactical rollouts prioritize extra turns and captures with an early cutoff at &gt;24 stones.</p>
+      <div style="display:flex; justify-content:flex-end; margin-top:14px;">
+        <button type="button" id="btn-close-rules" class="btn btn-gold">Close Rules</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================================
+       SOLID OPAQUE MODAL: GAME OVER SUMMARY
+       ========================================================================= -->
+  <div id="gameover-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="gameover-heading">
+    <div class="modal-card" style="text-align:center;">
+      <h2 id="gameover-heading" style="font-size:21px;">Game Over</h2>
+      <p id="gameover-desc" style="font-size:14px; font-weight:700; color:#f1f5f9;">Final Score</p>
+      <div class="final-boxes">
+        <div class="final-box" style="border-color:var(--accent-sky);">
+          <div style="font-size:11px; font-weight:800; color:#7dd3fc;">YOU STORE</div>
+          <div id="score-you-final" class="mono" style="font-size:26px; font-weight:800; color:#ffffff; margin-top:4px;">0</div>
+        </div>
+        <div class="final-box" style="border-color:var(--accent-emerald);">
+          <div style="font-size:11px; font-weight:800; color:#6ee7b7;">AI STORE</div>
+          <div id="score-ai-final" class="mono" style="font-size:26px; font-weight:800; color:#ffffff; margin-top:4px;">0</div>
+        </div>
+      </div>
+      <button type="button" id="btn-restart-modal" class="btn btn-gold" style="width:100%; justify-content:center; padding:9px; font-size:13px;">
+        Play New Game
+      </button>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    /* =========================================================================
+       BOARD CONSTANTS & PIT LABELING
+       Indices:
+         0..5   -> Human P1..P6 (bottom row left-to-right)
+         6      -> Human Store (YOU, right)
+         7..12  -> AI F6..F1 (top row right-to-left: 12=F1 above P1, 7=F6 above P6)
+         13     -> AI Store (AI, left)
+       ========================================================================= */
+    const HUMAN = 0;
+    const AI = 1;
+    const HUMAN_STORE = 6;
+    const AI_STORE = 13;
+
+    function pitLabel(idx) {
+      if (idx >= 0 && idx <= 5) return `P${idx + 1}`;
+      if (idx === HUMAN_STORE) return 'YOU';
+      if (idx >= 7 && idx <= 12) return `F${13 - idx}`;
+      if (idx === AI_STORE) return 'AI';
+      return `?${idx}`;
+    }
+
+    /* =========================================================================
+       SYNTHESIZED WOOD AUDIO (WEB AUDIO API — ZERO EXTERNAL FILES)
+       ========================================================================= */
+    class WoodSoundEngine {
+      constructor() {
+        this.enabled = true;
+        this.ctx = null;
+      }
+
+      unlock() {
+        if (!this.ctx && (window.AudioContext || window.webkitAudioContext)) {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AC();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      }
+
+      click(step = 0) {
+        if (!this.enabled) return;
+        try {
+          this.unlock();
+          if (!this.ctx) return;
+          const t = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          const f = 250 + (step % 7) * 26;
+          osc.frequency.setValueAtTime(f, t);
+          osc.frequency.exponentialRampToValueAtTime(f * 0.55, t + 0.055);
+          gain.gain.setValueAtTime(0.12, t);
+          gain.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.06);
+        } catch (err) {
+          // Ignore audio blocks
+        }
+      }
+
+      special(isExtra) {
+        if (!this.enabled) return;
+        this.click(isExtra ? 5 : 3);
+        setTimeout(() => this.click(isExtra ? 8 : 6), 65);
+      }
+    }
+
+    /* =========================================================================
+       AUTHENTIC KALAH RULES ENGINE
+       ========================================================================= */
+    class KalahEngine {
+      static initialBoard() {
+        return [
+          4, 4, 4, 4, 4, 4, 0, // 0..5 Human P1..P6, 6 YOU Store
+          4, 4, 4, 4, 4, 4, 0  // 7..12 AI F6..F1, 13 AI Store
+        ];
+      }
+
+      static legalMoves(board, player) {
+        const list = [];
+        const lo = player === HUMAN ? 0 : 7;
+        const hi = player === HUMAN ? 5 : 12;
+        for (let i = lo; i <= hi; i++) {
+          if (board[i] > 0) list.push(i);
+        }
+        return list;
+      }
+
+      static sideEmpty(board, player) {
+        const lo = player === HUMAN ? 0 : 7;
+        const hi = player === HUMAN ? 5 : 12;
+        for (let i = lo; i <= hi; i++) {
+          if (board[i] > 0) return false;
+        }
+        return true;
+      }
+
+      static simulateMove(board, player, pitIdx) {
+        const next = board.slice();
+        let hand = next[pitIdx];
+        next[pitIdx] = 0;
+
+        const ownStore = player === HUMAN ? HUMAN_STORE : AI_STORE;
+        const oppStore = player === HUMAN ? AI_STORE : HUMAN_STORE;
+        const ownLo = player === HUMAN ? 0 : 7;
+        const ownHi = player === HUMAN ? 5 : 12;
+
+        let cursor = pitIdx;
+        const path = [];
+
+        while (hand > 0) {
+          cursor = (cursor + 1) % 14;
+          if (cursor === oppStore) continue;
+          next[cursor] += 1;
+          path.push(cursor);
+          hand -= 1;
+        }
+
+        const landingPit = cursor;
+        let extraTurn = false;
+        let captured = 0;
+        let capturePit = -1;
+
+        if (landingPit === ownStore) {
+          extraTurn = true;
+        } else if (landingPit >= ownLo && landingPit <= ownHi && next[landingPit] === 1) {
+          const oppPit = 12 - landingPit;
+          if (next[oppPit] > 0) {
+            captured = next[oppPit] + 1;
+            capturePit = oppPit;
+            next[ownStore] += captured;
+            next[landingPit] = 0;
+            next[oppPit] = 0;
+          }
+        }
+
+        let gameOver = false;
+        if (KalahEngine.sideEmpty(next, HUMAN) || KalahEngine.sideEmpty(next, AI)) {
+          gameOver = true;
+          for (let i = 0; i <= 5; i++) {
+            next[HUMAN_STORE] += next[i];
+            next[i] = 0;
+          }
+          for (let i = 7; i <= 12; i++) {
+            next[AI_STORE] += next[i];
+            next[i] = 0;
+          }
+        }
+
+        const nextPlayer = gameOver
+          ? player
+          : (extraTurn ? player : (player === HUMAN ? AI : HUMAN));
+
+        return {
+          nextState: next,
+          nextPlayer,
+          extraTurn,
+          captured,
+          capturePit,
+          landingPit,
+          path,
+          gameOver
+        };
+      }
+    }
+
+    /* =========================================================================
+       TWO-PLAYER MINIMAX-UCB1 MONTE CARLO TREE SEARCH ENGINE
+       ========================================================================= */
+    class MCTSNode {
+      constructor(state, parent = null, move = null, mover = null, playerToMove = AI, meta = null) {
+        this.state = state;
+        this.parent = parent;
+        this.move = move;
+        this.mover = mover;               // Player who took `move` to reach this node
+        this.playerToMove = playerToMove; // Player whose turn it is at this node
+        this.meta = meta || { extraTurn: false, captured: 0, capturePit: -1, landingPit: -1 };
+        this.children = [];
+        this.visits = 0;
+        this.aiWins = 0;
+
+        // Order untried moves so extra-turn moves are prioritized first during expansion
+        const legal = KalahEngine.legalMoves(state, playerToMove);
+        const ownStore = playerToMove === HUMAN ? HUMAN_STORE : AI_STORE;
+        const extraMoves = [];
+        const regularMoves = [];
+        for (let i = 0; i < legal.length; i++) {
+          const m = legal[i];
+          const dist = ownStore - m;
+          if (state[m] === dist) extraMoves.push(m);
+          else regularMoves.push(m);
+        }
+        this.untriedMoves = extraMoves.concat(regularMoves);
+      }
+
+      ucb1Score(c = 1.414) {
+        if (this.visits === 0) return Infinity;
+        const parentVisits = this.parent ? Math.max(1, this.parent.visits) : 1;
+        const aiRate = this.aiWins / this.visits;
+        // Minimax UCB1: parent AI maximizes aiWins/visits; parent Human maximizes (1 - aiWins/visits)
+        const perspectiveRate = (this.parent && this.parent.playerToMove === HUMAN)
+          ? (1 - aiRate)
+          : aiRate;
+        return perspectiveRate + c * Math.sqrt(Math.log(parentVisits) / this.visits);
+      }
+    }
+
+    class MinimaxMCTS {
+      constructor() {
+        this.c = 1.414;
+      }
+
+      run(rootState, rootPlayer, simulations) {
+        const t0 = performance.now();
+        const root = new MCTSNode(rootState.slice(), null, null, null, rootPlayer, null);
+
+        for (let s = 0; s < simulations; s++) {
+          let node = root;
+
+          // 1. SELECTION (Minimax-UCB1)
+          while (node.untriedMoves.length === 0 && node.children.length > 0) {
+            let best = node.children[0];
+            let bestVal = -Infinity;
+            for (let i = 0; i < node.children.length; i++) {
+              const val = node.children[i].ucb1Score(this.c);
+              if (val > bestVal) {
+                bestVal = val;
+                best = node.children[i];
+              }
+            }
+            node = best;
+          }
+
+          // 2. EXPANSION (Prioritize untried extra-turn moves first, then random remaining)
+          if (node.untriedMoves.length > 0) {
+            const ownStore = node.playerToMove === HUMAN ? HUMAN_STORE : AI_STORE;
+            let pickIdx = 0;
+            // Check if untriedMoves[0] is an extra-turn move; if not, pick randomly among remaining
+            if (node.state[node.untriedMoves[0]] !== (ownStore - node.untriedMoves[0])) {
+              pickIdx = Math.floor(Math.random() * node.untriedMoves.length);
+            }
+            const move = node.untriedMoves.splice(pickIdx, 1)[0];
+            const res = KalahEngine.simulateMove(node.state, node.playerToMove, move);
+            const child = new MCTSNode(
+              res.nextState,
+              node,
+              move,
+              node.playerToMove,
+              res.nextPlayer,
+              {
+                extraTurn: res.extraTurn,
+                captured: res.captured,
+                capturePit: res.capturePit,
+                landingPit: res.landingPit
+              }
+            );
+            node.children.push(child);
+            node = child;
+          }
+
+          // 3. TACTICAL ROLLOUT (Prefer extra-turn or capture moves, cutoff > 24 stones)
+          const reward = this.tacticalRollout(node.state, node.playerToMove);
+
+          // 4. BACKPROPAGATION
+          let curr = node;
+          while (curr !== null) {
+            curr.visits += 1;
+            curr.aiWins += reward;
+            curr = curr.parent;
+          }
+        }
+
+        const elapsedMs = Math.max(1, Math.round(performance.now() - t0));
+
+        // Sort root children by visit count to determine best move
+        const sorted = root.children.slice().sort((a, b) => b.visits - a.visits);
+        const bestChild = sorted[0] || null;
+
+        const candidates = sorted.map(ch => ({
+          move: ch.move,
+          label: pitLabel(ch.move),
+          visits: ch.visits,
+          sharePct: root.visits > 0 ? (ch.visits / root.visits) * 100 : 0,
+          aiWinPct: ch.visits > 0 ? (ch.aiWins / ch.visits) * 100 : 50,
+          moverWinPct: ch.visits > 0
+            ? ((rootPlayer === AI ? ch.aiWins : (ch.visits - ch.aiWins)) / ch.visits) * 100
+            : 50,
+          extraTurn: ch.meta.extraTurn,
+          captured: ch.meta.captured
+        }));
+
+        const aiWinEst = bestChild && bestChild.visits > 0
+          ? (bestChild.aiWins / bestChild.visits) * 100
+          : 50;
+
+        return {
+          rootNode: root,
+          rootPlayer,
+          bestMove: bestChild ? bestChild.move : null,
+          simulations: root.visits,
+          aiWinEst,
+          elapsedMs,
+          candidates
+        };
+      }
+
+      tacticalRollout(startState, startPlayer) {
+        let state = startState.slice();
+        let player = startPlayer;
+        let guard = 0;
+
+        while (guard < 120) {
+          guard += 1;
+
+          // Early terminal majority cutoff (> 24 of 48 stones guarantees victory)
+          if (state[AI_STORE] > 24) return 1.0;
+          if (state[HUMAN_STORE] > 24) return 0.0;
+
+          const moves = KalahEngine.legalMoves(state, player);
+          if (moves.length === 0) {
+            for (let i = 0; i <= 5; i++) { state[HUMAN_STORE] += state[i]; state[i] = 0; }
+            for (let i = 7; i <= 12; i++) { state[AI_STORE] += state[i]; state[i] = 0; }
+            break;
+          }
+
+          const ownStore = player === HUMAN ? HUMAN_STORE : AI_STORE;
+          const ownLo = player === HUMAN ? 0 : 7;
+          const ownHi = player === HUMAN ? 5 : 12;
+
+          // Tactical move preference: 1) Extra turn, 2) Direct capture, 3) Random legal
+          let chosen = -1;
+          for (let i = 0; i < moves.length; i++) {
+            const m = moves[i];
+            if (state[m] === (ownStore - m)) {
+              chosen = m;
+              break;
+            }
+          }
+
+          if (chosen === -1) {
+            for (let i = 0; i < moves.length; i++) {
+              const m = moves[i];
+              const target = (m + state[m]) % 14;
+              if (
+                state[m] < 13 &&
+                target >= ownLo &&
+                target <= ownHi &&
+                state[target] === 0 &&
+                state[12 - target] > 0
+              ) {
+                chosen = m;
+                break;
+              }
+            }
+          }
+
+          if (chosen === -1) {
+            chosen = moves[Math.floor(Math.random() * moves.length)];
+          }
+
+          const step = KalahEngine.simulateMove(state, player, chosen);
+          state = step.nextState;
+          player = step.nextPlayer;
+          if (step.gameOver) break;
+        }
+
+        if (state[AI_STORE] > state[HUMAN_STORE]) return 1.0;
+        if (state[HUMAN_STORE] > state[AI_STORE]) return 0.0;
+        return 0.5;
+      }
+    }
+
+    /* =========================================================================
+       DETERMINISTIC SOLID SVG STONE RENDERER (ZERO OPACITY / ZERO ANIMATION)
+       ========================================================================= */
+    const PEBBLE_PALETTE = [
+      { fill: '#38bdf8', rim: '#0369a1' },
+      { fill: '#fbbf24', rim: '#b45309' },
+      { fill: '#34d399', rim: '#047857' },
+      { fill: '#fb7185', rim: '#be123c' },
+      { fill: '#c084fc', rim: '#6b21a8' },
+      { fill: '#e2e8f0', rim: '#475569' }
+    ];
+
+    function renderStonesSVG(pitIdx, count, isStore) {
+      if (count <= 0) return '';
+      const w = isStore ? 74 : 68;
+      const h = isStore ? 104 : 40;
+      const maxPebbles = Math.min(count, isStore ? 32 : 18);
+      const radius = isStore ? 6.5 : 6;
+
+      const cols = isStore ? 4 : 5;
+      const rows = Math.ceil(maxPebbles / cols);
+      const cellW = (w - 14) / cols;
+      const cellH = (h - 12) / Math.max(1, rows);
+
+      let out = '';
+      for (let i = 0; i < maxPebbles; i++) {
+        const c = i % cols;
+        const r = Math.floor(i / cols);
+        const ox = (((pitIdx + 2) * 29 + i * 19) % 7 - 3) * 0.9;
+        const oy = (((pitIdx * 11 + i * 23) % 5) - 2) * 0.9;
+        const cx = 7 + cellW * (c + 0.5) + ox;
+        const cy = 6 + cellH * (r + 0.5) + oy;
+        const pal = PEBBLE_PALETTE[(pitIdx * 5 + i) % PEBBLE_PALETTE.length];
+
+        out += `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${radius}" fill="${pal.fill}" stroke="${pal.rim}" stroke-width="1.4" />`;
+        out += `<circle cx="${(cx - 1.7).toFixed(1)}" cy="${(cy - 1.7).toFixed(1)}" r="1.5" fill="#ffffff" />`;
+      }
+      return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${out}</svg>`;
+    }
+
+    /* =========================================================================
+       REINGOLD-TILFORD CONTOUR TREE LAYOUT ENGINE (ZERO OVERLAP, COMPACT FIT)
+       ========================================================================= */
+    class ReingoldTilfordLayout {
+      /**
+       * Computes exact non-overlapping (x, y) center coordinates for every visible
+       * node in an arbitrary-depth, arbitrary-width tree.
+       */
+      static compute(rootWrapper, nodeW = 64, nodeH = 36, hGap = 7, vStep = 54, pad = 12) {
+        const sep = nodeW + hGap;
+
+        // Post-order walk computing relative preliminary x offsets and left/right contours
+        const firstWalk = (vNode) => {
+          if (vNode.children.length === 0) {
+            vNode.prelim = 0;
+            vNode.leftContour = [0];
+            vNode.rightContour = [0];
+            return;
+          }
+
+          for (let i = 0; i < vNode.children.length; i++) {
+            firstWalk(vNode.children[i]);
+          }
+
+          const firstChild = vNode.children[0];
+          firstChild.prelim = 0;
+          let mergedLeft = firstChild.leftContour.slice();
+          let mergedRight = firstChild.rightContour.slice();
+
+          for (let i = 1; i < vNode.children.length; i++) {
+            const child = vNode.children[i];
+            const commonDepth = Math.min(mergedRight.length, child.leftContour.length);
+            let shift = 0;
+
+            for (let d = 0; d < commonDepth; d++) {
+              const needed = mergedRight[d] + sep - child.leftContour[d];
+              if (needed > shift) shift = needed;
+            }
+
+            child.prelim = shift;
+
+            // Update merged contours relative to children[0]
+            const newLen = Math.max(mergedRight.length, child.rightContour.length);
+            const nextLeft = new Array(newLen);
+            const nextRight = new Array(newLen);
+
+            for (let d = 0; d < newLen; d++) {
+              const prevL = d < mergedLeft.length ? mergedLeft[d] : Infinity;
+              const currL = d < child.leftContour.length ? (shift + child.leftContour[d]) : Infinity;
+              nextLeft[d] = Math.min(prevL, currL);
+
+              const prevR = d < mergedRight.length ? mergedRight[d] : -Infinity;
+              const currR = d < child.rightContour.length ? (shift + child.rightContour[d]) : -Infinity;
+              nextRight[d] = Math.max(prevR, currR);
+            }
+
+            mergedLeft = nextLeft;
+            mergedRight = nextRight;
+          }
+
+          const lastChild = vNode.children[vNode.children.length - 1];
+          const mid = (firstChild.prelim + lastChild.prelim) / 2;
+          vNode.prelim = 0;
+          vNode.childShiftBase = -mid;
+
+          vNode.leftContour = [0];
+          vNode.rightContour = [0];
+          for (let d = 0; d < mergedLeft.length; d++) {
+            vNode.leftContour.push(mergedLeft[d] - mid);
+            vNode.rightContour.push(mergedRight[d] - mid);
+          }
+        };
+
+        firstWalk(rootWrapper);
+
+        const allNodes = [];
+        const allEdges = [];
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let maxDepth = 0;
+
+        // Pre-order walk converting relative offsets into final coordinates
+        const secondWalk = (vNode, absX, depth) => {
+          vNode.x = absX;
+          vNode.y = depth * vStep + pad;
+          vNode.depth = depth;
+          allNodes.push(vNode);
+
+          if (absX < minX) minX = absX;
+          if (absX > maxX) maxX = absX;
+          if (depth > maxDepth) maxDepth = depth;
+
+          for (let i = 0; i < vNode.children.length; i++) {
+            const ch = vNode.children[i];
+            const childAbsX = absX + vNode.childShiftBase + ch.prelim;
+            allEdges.push({ parent: vNode, child: ch });
+            secondWalk(ch, childAbsX, depth + 1);
+          }
+        };
+
+        secondWalk(rootWrapper, 0, 0);
+
+        // Shift all coordinates so leftmost node edge sits cleanly at `pad`
+        const offsetX = pad + nodeW / 2 - minX;
+        for (let i = 0; i < allNodes.length; i++) {
+          allNodes[i].x += offsetX;
+        }
+
+        const totalW = Math.max(240, Math.ceil(maxX + offsetX + nodeW / 2 + pad));
+        const totalH = Math.max(120, Math.ceil((maxDepth + 1) * vStep + pad));
+
+        return { nodes: allNodes, edges: allEdges, totalW, totalH };
+      }
+    }
+
+    /* =========================================================================
+       MAIN MANCALA APPLICATION CONTROLLER
+       ========================================================================= */
+    class MancalaGameApp {
+      constructor() {
+        this.board = KalahEngine.initialBoard();
+        this.currentPlayer = HUMAN;
+        this.turnCount = 1;
+        this.isBusy = false;
+        this.gameOver = false;
+
+        this.simBudget = 1000;
+        this.mcts = new MinimaxMCTS();
+        this.sound = new WoodSoundEngine();
+
+        this.undoHistory = [];
+        this.lastSearch = null;
+        this.focusChain = [];       // Array of MCTSNode from full root down to focused root
+        this.minVisitsFilter = 1;   // 1 = All Nodes, 2, 5, 15
+        this.zoomMode = 'fit';      // 'fit' or numeric string '1', '0.75', '0.5', '0.35'
+        this.inspectedNode = null;  // Currently selected MCTSNode in tree
+        this.lastTreeLayout = null;
+
+        this.wireEvents();
+        this.renderBoard();
+      }
+
+      wireEvents() {
+        // Simulation budget selector (300, 1000, 2500, 5000)
+        document.querySelectorAll('.budget-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (this.isBusy) return;
+            this.simBudget = parseInt(btn.dataset.sims, 10);
+            document.querySelectorAll('.budget-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+          });
+        });
+
+        // Human pits P1..P6 (indices 0..5)
+        for (let i = 0; i <= 5; i++) {
+          const el = document.getElementById(`pit-${i}`);
+          el.addEventListener('click', () => this.onHumanPitClick(i));
+          el.addEventListener('mouseenter', () => this.onHumanPitHover(i));
+          el.addEventListener('mouseleave', () => this.clearPreviewClasses());
+        }
+
+        // Toolbar buttons
+        document.getElementById('btn-analyze').addEventListener('click', () => {
+          if (!this.isBusy && !this.gameOver && this.currentPlayer === HUMAN) {
+            this.analyzeHumanTurn();
+          }
+        });
+
+        document.getElementById('btn-undo').addEventListener('click', () => {
+          if (!this.isBusy && this.undoHistory.length > 0) {
+            this.undoTurn();
+          }
+        });
+
+        document.getElementById('btn-sound').addEventListener('click', e => {
+          this.sound.enabled = !this.sound.enabled;
+          e.currentTarget.textContent = this.sound.enabled ? 'Sound: On' : 'Sound: Mute';
+        });
+
+        document.getElementById('btn-rules').addEventListener('click', () => {
+          document.getElementById('rules-modal').classList.add('open');
+        });
+        document.getElementById('btn-close-rules').addEventListener('click', () => {
+          document.getElementById('rules-modal').classList.remove('open');
+        });
+
+        document.getElementById('btn-new').addEventListener('click', () => this.resetMatch());
+        document.getElementById('btn-restart-modal').addEventListener('click', () => {
+          document.getElementById('gameover-modal').classList.remove('open');
+          this.resetMatch();
+        });
+
+        // Min-Visit Filter toggles
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.minVisitsFilter = parseInt(btn.dataset.minv, 10);
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (this.lastSearch) this.renderFullTree();
+          });
+        });
+
+        // Zoom controls
+        document.querySelectorAll('.zoom-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            this.zoomMode = btn.dataset.zoom;
+            document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            if (this.lastSearch) this.applyTreeZoom();
+          });
+        });
+
+        // Focus Subtree button
+        document.getElementById('btn-focus-subtree').addEventListener('click', () => {
+          if (this.inspectedNode && this.lastSearch) {
+            this.focusOnNode(this.inspectedNode);
+          }
+        });
+
+        // Re-fit tree smoothly on window resize when in Fit mode
+        window.addEventListener('resize', () => {
+          if (this.lastSearch && this.zoomMode === 'fit') {
+            this.applyTreeZoom();
+          }
+        });
+      }
+
+      resetMatch() {
+        this.board = KalahEngine.initialBoard();
+        this.currentPlayer = HUMAN;
+        this.turnCount = 1;
+        this.isBusy = false;
+        this.gameOver = false;
+        this.undoHistory = [];
+        this.lastSearch = null;
+        this.focusChain = [];
+        this.inspectedNode = null;
+        this.lastTreeLayout = null;
+
+        document.getElementById('turn-counter').textContent = 'Turn 1';
+        document.getElementById('search-time-label').textContent = 'Elapsed: —';
+        document.getElementById('pill-depth').innerHTML = 'Max Depth: <strong>0 plies</strong>';
+        document.getElementById('pill-nodes').innerHTML = 'Nodes Shown: <strong>0 / 0</strong>';
+        document.getElementById('pill-sims').innerHTML = 'Simulations: <strong>0</strong>';
+        document.getElementById('pill-win').innerHTML = 'AI Win Est: <strong>—</strong>';
+        document.getElementById('crumb-trail').innerHTML = '<span style="color:#94a3b8;">Path: Full Root</span>';
+        document.getElementById('btn-focus-subtree').disabled = true;
+
+        document.getElementById('inspector-fields').innerHTML = `
+          <span class="inspector-tag">INSPECTOR</span>
+          <span>Play a move or click <strong>Analyze My Turn</strong> to inspect the full MCTS tree.</span>
+        `;
+        document.getElementById('inspector-board-state').textContent = 'AI: — | YOU: —';
+
+        document.getElementById('tree-viewport').innerHTML = `
+          <div class="tree-empty-msg">
+            No search tree computed yet. Make your move or click <strong>Analyze My Turn</strong> to generate the uncapped MCTS tree.
+          </div>
+        `;
+
+        document.getElementById('cand-grid').innerHTML = `
+          <div style="font-size:12px; color:#94a3b8; grid-column:1/-1;">
+            Root move visit shares and win-rate estimates will appear here after search.
+          </div>
+        `;
+
+        document.getElementById('log-feed').innerHTML = `
+          <div class="log-row system">Match initialized: 4 stones per pit (48 total). You move first.</div>
+        `;
+
+        this.clearPreviewClasses();
+        this.clearInspectedPit();
+        this.setBanner('Your Turn — Click any pit P1–P6 on the bottom row to sow counter-clockwise.', 'human');
+        this.renderBoard();
+      }
+
+      setBanner(text, mode = 'human') {
+        document.getElementById('status-msg').textContent = text;
+        const pip = document.getElementById('turn-pip');
+        pip.className = 'turn-pip';
+        if (mode === 'human') pip.classList.add('pip-human');
+        else if (mode === 'ai') pip.classList.add('pip-ai');
+        else pip.classList.add('pip-gold');
+      }
+
+      appendLog(text, cls = 'system') {
+        const feed = document.getElementById('log-feed');
+        const row = document.createElement('div');
+        row.className = `log-row ${cls}`;
+        row.textContent = text;
+        feed.insertBefore(row, feed.firstChild);
+      }
+
+      renderBoard() {
+        for (let i = 0; i < 14; i++) {
+          const val = this.board[i];
+          const isStore = (i === HUMAN_STORE || i === AI_STORE);
+          document.getElementById(`count-${i}`).textContent = val;
+          document.getElementById(`stones-${i}`).innerHTML = renderStonesSVG(i, val, isStore);
+
+          if (!isStore) {
+            const well = document.getElementById(`pit-${i}`);
+            well.classList.toggle('pit-empty', val === 0);
+            if (i <= 5) {
+              const playable = !this.isBusy && !this.gameOver && this.currentPlayer === HUMAN && val > 0;
+              well.classList.toggle('pit-playable', playable);
+            }
+          }
+        }
+        document.getElementById('btn-analyze').disabled = this.isBusy || this.gameOver || this.currentPlayer !== HUMAN;
+        document.getElementById('btn-undo').disabled = this.isBusy || this.undoHistory.length === 0;
+      }
+
+      onHumanPitHover(pitIdx) {
+        this.clearPreviewClasses();
+        if (this.isBusy || this.gameOver || this.currentPlayer !== HUMAN) return;
+        if (this.board[pitIdx] <= 0) return;
+
+        const sim = KalahEngine.simulateMove(this.board, HUMAN, pitIdx);
+        sim.path.forEach((p, idx) => {
+          const el = document.getElementById(`pit-${p}`);
+          if (!el) return;
+          if (idx === sim.path.length - 1) {
+            if (sim.extraTurn) el.classList.add('pit-extra');
+            else if (sim.captured > 0) el.classList.add('pit-capture');
+            else el.classList.add('pit-landing');
+          } else {
+            el.classList.add('pit-path');
+          }
+        });
+
+        let msg = `${pitLabel(pitIdx)} (${this.board[pitIdx]} stones) → Lands in ${pitLabel(sim.landingPit)}`;
+        if (sim.extraTurn) msg += ' [+1 Extra Turn!]';
+        if (sim.captured > 0) msg += ` [CAP: +${sim.captured} stones from ${pitLabel(sim.capturePit)}!]`;
+        document.getElementById('hover-readout').textContent = msg;
+      }
+
+      clearPreviewClasses() {
+        for (let i = 0; i < 14; i++) {
+          const el = document.getElementById(`pit-${i}`);
+          if (el) el.classList.remove('pit-path', 'pit-landing', 'pit-extra', 'pit-capture');
+        }
+        document.getElementById('hover-readout').textContent =
+          'Hover any legal pit P1–P6 to preview path, extra turns & captures';
+      }
+
+      clearInspectedPit() {
+        for (let i = 0; i < 14; i++) {
+          const el = document.getElementById(`pit-${i}`);
+          if (el) el.classList.remove('pit-inspected');
+        }
+      }
+
+      undoTurn() {
+        const snap = this.undoHistory.pop();
+        if (!snap) return;
+        this.board = snap.board;
+        this.turnCount = snap.turnCount;
+        this.currentPlayer = HUMAN;
+        this.gameOver = false;
+        document.getElementById('gameover-modal').classList.remove('open');
+        document.getElementById('turn-counter').textContent = `Turn ${this.turnCount}`;
+        this.clearPreviewClasses();
+        this.clearInspectedPit();
+        this.setBanner('Undone — Your Turn. Select any legal pit P1–P6.', 'human');
+        this.appendLog('Reverted board to start of your previous turn.', 'system');
+        this.renderBoard();
+      }
+
+      async onHumanPitClick(pitIdx) {
+        if (this.isBusy || this.gameOver || this.currentPlayer !== HUMAN) return;
+        if (this.board[pitIdx] <= 0) return;
+
+        this.undoHistory.push({
+          board: this.board.slice(),
+          turnCount: this.turnCount
+        });
+
+        this.clearPreviewClasses();
+        this.clearInspectedPit();
+        await this.performMove(HUMAN, pitIdx);
+      }
+
+      async performMove(player, pitIdx) {
+        this.isBusy = true;
+        this.renderBoard();
+
+        const actor = player === HUMAN ? 'You' : 'AI';
+        const outcome = KalahEngine.simulateMove(this.board, player, pitIdx);
+
+        // Discrete stone-by-stone sowing without opacity fades
+        let stones = this.board[pitIdx];
+        this.board[pitIdx] = 0;
+        this.renderBoard();
+
+        const oppStore = player === HUMAN ? AI_STORE : HUMAN_STORE;
+        let idx = pitIdx;
+        let step = 0;
+
+        while (stones > 0) {
+          idx = (idx + 1) % 14;
+          if (idx === oppStore) continue;
+          this.board[idx] += 1;
+          stones -= 1;
+          this.renderBoard();
+
+          const well = document.getElementById(`pit-${idx}`);
+          well.classList.add('pit-sow-step');
+          this.sound.click(step++);
+          await this.wait(105);
+          well.classList.remove('pit-sow-step');
+        }
+
+        if (outcome.captured > 0 || outcome.extraTurn) {
+          this.sound.special(outcome.extraTurn);
+          await this.wait(120);
+        }
+
+        this.board = outcome.nextState;
+        this.renderBoard();
+
+        let entry = `${actor} sowed ${pitLabel(pitIdx)} → ${pitLabel(outcome.landingPit)}.`;
+        if (outcome.captured > 0) {
+          entry += ` Captured ${outcome.captured} stones from ${pitLabel(outcome.capturePit)}!`;
+        }
+        if (outcome.extraTurn && !outcome.gameOver) {
+          entry += ' Extra Turn (+1)!';
+        }
+        this.appendLog(entry, player === HUMAN ? 'human' : 'ai');
+
+        if (outcome.gameOver) {
+          this.gameOver = true;
+          this.isBusy = false;
+          this.renderBoard();
+          this.finishGame();
+          return;
+        }
+
+        if (outcome.extraTurn) {
+          this.isBusy = false;
+          this.currentPlayer = player;
+          this.renderBoard();
+          if (player === HUMAN) {
+            this.setBanner('Extra Turn (+1)! Your last stone landed in YOU — pick another pit P1–P6.', 'gold');
+          } else {
+            this.setBanner('AI Extra Turn (+1)! Running MCTS on AI follow-up position...', 'ai');
+            await this.wait(180);
+            await this.executeAITurn();
+          }
+          return;
+        }
+
+        this.currentPlayer = outcome.nextPlayer;
+        if (this.currentPlayer === HUMAN) {
+          this.turnCount += 1;
+          document.getElementById('turn-counter').textContent = `Turn ${this.turnCount}`;
+          this.isBusy = false;
+          this.renderBoard();
+          this.setBanner('Your Turn — Click any pit P1–P6 on the bottom row.', 'human');
+        } else {
+          this.isBusy = false;
+          this.renderBoard();
+          this.setBanner(`AI Turn — Running ${this.simBudget.toLocaleString()} MCTS simulations...`, 'ai');
+          await this.wait(60);
+          await this.executeAITurn();
+        }
+      }
+
+      async executeAITurn() {
+        this.isBusy = true;
+        this.renderBoard();
+        await this.wait(20);
+
+        const res = this.mcts.run(this.board, AI, this.simBudget);
+        this.lastSearch = res;
+        this.focusChain = [res.rootNode];
+
+        this.renderCandidates(res);
+        this.renderFullTree();
+
+        await this.wait(140);
+        await this.performMove(AI, res.bestMove);
+      }
+
+      async analyzeHumanTurn() {
+        this.isBusy = true;
+        this.renderBoard();
+        this.setBanner(`Analyzing Your Turn — Running ${this.simBudget.toLocaleString()} MCTS simulations...`, 'gold');
+        await this.wait(20);
+
+        const res = this.mcts.run(this.board, HUMAN, this.simBudget);
+        this.lastSearch = res;
+        this.focusChain = [res.rootNode];
+
+        this.renderCandidates(res);
+        this.renderFullTree();
+
+        this.isBusy = false;
+        this.renderBoard();
+        const humanWin = (100 - res.aiWinEst).toFixed(1);
+        this.setBanner(
+          `Analysis Complete — Best move for you: ${pitLabel(res.bestMove)} (${humanWin}% Your Win Est.). Your Turn!`,
+          'human'
+        );
+      }
+
+      renderCandidates(res) {
+        document.getElementById('search-time-label').textContent = `Elapsed: ${res.elapsedMs} ms`;
+        const grid = document.getElementById('cand-grid');
+        grid.innerHTML = '';
+
+        res.candidates.forEach((cand, idx) => {
+          const isBest = idx === 0;
+          const card = document.createElement('div');
+          card.className = `cand-card ${isBest ? 'best' : ''}`;
+          const tag = cand.extraTurn ? ' +1' : (cand.captured > 0 ? ' CAP' : '');
+          card.innerHTML = `
+            <div class="cand-line mono">
+              <strong style="color:${isBest ? '#fde68a' : '#f1f5f9'};">${cand.label}${tag}</strong>
+              <span style="color:#cbd5e1;">N:${cand.visits} (${cand.sharePct.toFixed(0)}%)</span>
+            </div>
+            <div class="cand-line mono" style="font-size:10.5px; color:#94a3b8;">
+              <span>AI Win: <strong style="color:#ffffff;">${cand.aiWinPct.toFixed(1)}%</strong></span>
+              <span>You Win: <strong style="color:#ffffff;">${(100 - cand.aiWinPct).toFixed(1)}%</strong></span>
+            </div>
+            <div class="bar-bg">
+              <div class="bar-fill" style="width:${Math.max(3, cand.sharePct)}%;"></div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      }
+
+      /* =======================================================================
+         UNCAPPED FULL-TREE VISUALIZER WITH COMPACT MICRO-NODES & ONE-SCREEN FIT
+         ======================================================================= */
+      focusOnNode(targetMctsNode) {
+        if (!this.lastSearch) return;
+        const chain = [];
+        let curr = targetMctsNode;
+        while (curr !== null) {
+          chain.unshift(curr);
+          curr = curr.parent;
+        }
+        if (chain.length > 0 && chain[0] === this.lastSearch.rootNode) {
+          this.focusChain = chain;
+          this.renderFullTree();
+        }
+      }
+
+      renderBreadcrumbs() {
+        const bar = document.getElementById('crumb-trail');
+        bar.innerHTML = '';
+        this.focusChain.forEach((node, idx) => {
+          if (idx > 0) {
+            const sep = document.createElement('span');
+            sep.textContent = '>';
+            sep.style.color = '#64748b';
+            bar.appendChild(sep);
+          }
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `crumb-btn ${idx === this.focusChain.length - 1 ? 'current' : ''}`;
+          btn.textContent = idx === 0 ? 'Full Root' : pitLabel(node.move);
+          btn.addEventListener('click', () => {
+            this.focusChain = this.focusChain.slice(0, idx + 1);
+            this.renderFullTree();
+          });
+          bar.appendChild(btn);
+        });
+      }
+
+      renderFullTree() {
+        if (!this.lastSearch) return;
+        this.renderBreadcrumbs();
+
+        const fullRoot = this.lastSearch.rootNode;
+        const activeRoot = this.focusChain[this.focusChain.length - 1] || fullRoot;
+        const minV = this.minVisitsFilter;
+
+        // Compute full tree statistics (actual max depth in plies and total expanded nodes)
+        let totalTreeNodes = 0;
+        let maxTreePly = 0;
+        const scanFullStats = (mNode, ply) => {
+          totalTreeNodes += 1;
+          if (ply > maxTreePly) maxTreePly = ply;
+          for (let i = 0; i < mNode.children.length; i++) {
+            scanFullStats(mNode.children[i], ply + 1);
+          }
+        };
+        scanFullStats(fullRoot, 0);
+
+        // Identify Principal Variation (highest-visit child chain from activeRoot)
+        const pvSet = new Set();
+        let pvCursor = activeRoot;
+        while (pvCursor) {
+          pvSet.add(pvCursor);
+          if (pvCursor.children.length === 0) break;
+          let topChild = pvCursor.children[0];
+          for (let i = 1; i < pvCursor.children.length; i++) {
+            if (pvCursor.children[i].visits > topChild.visits) {
+              topChild = pvCursor.children[i];
+            }
+          }
+          pvCursor = topChild;
+        }
+
+        // Build uncapped visual tree wrapper (NO depth cap, NO child-count cap)
+        const buildWrapper = (mNode, relDepth) => {
+          // Sort children by visits descending so PV sits cleanly on the left
+          const orderedChildren = mNode.children
+            .slice()
+            .filter(ch => ch.visits >= minV)
+            .sort((a, b) => b.visits - a.visits);
+
+          return {
+            mNode,
+            isRoot: relDepth === 0,
+            isPV: pvSet.has(mNode),
+            children: orderedChildren.map(ch => buildWrapper(ch, relDepth + 1))
+          };
+        };
+
+        const rootWrapper = buildWrapper(activeRoot, 0);
+
+        // Compute Reingold-Tilford non-overlapping compact layout (64px x 36px nodes)
+        const NODE_W = 64;
+        const NODE_H = 36;
+        const layout = ReingoldTilfordLayout.compute(rootWrapper, NODE_W, NODE_H, 7, 52, 12);
+        this.lastTreeLayout = layout;
+
+        // Update telemetry badges
+        document.getElementById('pill-depth').innerHTML = `Max Depth: <strong>${maxTreePly} plies</strong>`;
+        document.getElementById('pill-nodes').innerHTML = `Nodes Shown: <strong>${layout.nodes.length} / ${totalTreeNodes}</strong>`;
+        document.getElementById('pill-sims').innerHTML = `Simulations: <strong>${this.lastSearch.simulations.toLocaleString()}</strong>`;
+        document.getElementById('pill-win').innerHTML = `AI Win Est: <strong>${this.lastSearch.aiWinEst.toFixed(1)}%</strong>`;
+
+        const viewport = document.getElementById('tree-viewport');
+        viewport.innerHTML = '';
+
+        // Wrapper sized to scaled dimensions + inner canvas transformed from top-left
+        const scaleHost = document.createElement('div');
+        scaleHost.id = 'tree-scale-host';
+        scaleHost.style.position = 'relative';
+        scaleHost.style.width = `${layout.totalW}px`;
+        scaleHost.style.height = `${layout.totalH}px`;
+
+        const canvas = document.createElement('div');
+        canvas.id = 'tree-canvas';
+        canvas.style.position = 'absolute';
+        canvas.style.left = '0';
+        canvas.style.top = '0';
+        canvas.style.width = `${layout.totalW}px`;
+        canvas.style.height = `${layout.totalH}px`;
+        canvas.style.transformOrigin = 'top left';
+
+        // Crisp solid SVG edges connecting parent bottom-center to child top-center
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('width', layout.totalW);
+        svg.setAttribute('height', layout.totalH);
+        svg.style.position = 'absolute';
+        svg.style.left = '0';
+        svg.style.top = '0';
+        svg.style.pointerEvents = 'none';
+
+        for (let i = 0; i < layout.edges.length; i++) {
+          const { parent, child } = layout.edges[i];
+          const x1 = parent.x;
+          const y1 = parent.y + NODE_H;
+          const x2 = child.x;
+          const y2 = child.y;
+          const midY = (y1 + y2) / 2;
+
+          const path = document.createElementNS(svgNS, 'path');
+          path.setAttribute('d', `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`);
+          path.setAttribute('fill', 'none');
+          if (child.isPV) {
+            path.setAttribute('stroke', '#f59e0b');
+            path.setAttribute('stroke-width', '2');
+          } else {
+            path.setAttribute('stroke', child.mNode.mover === AI ? '#10b981' : '#38bdf8');
+            path.setAttribute('stroke-width', '1.15');
+          }
+          svg.appendChild(path);
+        }
+        canvas.appendChild(svg);
+
+        // Render compact 64x36 micro-nodes
+        let defaultInspectWrapper = rootWrapper;
+        if (rootWrapper.children.length > 0) {
+          defaultInspectWrapper = rootWrapper.children[0];
+        }
+
+        for (let i = 0; i < layout.nodes.length; i++) {
+          const vNode = layout.nodes[i];
+          const m = vNode.mNode;
+          const card = document.createElement('div');
+
+          let roleClass = 'node-root';
+          if (!vNode.isRoot) {
+            roleClass = m.mover === AI ? 'node-ai' : 'node-human';
+          }
+          card.className = `micro-node mono ${roleClass} ${vNode.isPV && !vNode.isRoot ? 'node-pv' : ''}`;
+          card.style.left = `${vNode.x - NODE_W / 2}px`;
+          card.style.top = `${vNode.y}px`;
+
+          const moveCode = vNode.isRoot
+            ? (m.move === null ? 'ROOT' : pitLabel(m.move))
+            : pitLabel(m.move);
+          const aiWin = m.visits > 0 ? Math.round((m.aiWins / m.visits) * 100) : 50;
+
+          let tagHtml = '';
+          if (m.meta && m.meta.extraTurn) {
+            tagHtml = `<span class="mn-badge badge-extra">+1</span>`;
+          } else if (m.meta && m.meta.captured > 0) {
+            tagHtml = `<span class="mn-badge badge-cap">CAP</span>`;
+          } else {
+            tagHtml = `<span class="mn-badge badge-score">${m.state[AI_STORE]}-${m.state[HUMAN_STORE]}</span>`;
+          }
+
+          card.innerHTML = `
+            <div class="mn-row">
+              <span class="mn-move">${moveCode}</span>
+              <span class="mn-win">${aiWin}%</span>
+            </div>
+            <div class="mn-row">
+              <span class="mn-visits">N:${m.visits}</span>
+              ${tagHtml}
+            </div>
+          `;
+
+          card.addEventListener('mouseenter', () => this.inspectMCTSNode(m, card, false));
+          card.addEventListener('click', () => this.inspectMCTSNode(m, card, true));
+          card.addEventListener('dblclick', () => this.focusOnNode(m));
+
+          vNode.domEl = card;
+          canvas.appendChild(card);
+        }
+
+        scaleHost.appendChild(canvas);
+        viewport.appendChild(scaleHost);
+
+        this.applyTreeZoom();
+
+        if (defaultInspectWrapper && defaultInspectWrapper.domEl) {
+          this.inspectMCTSNode(defaultInspectWrapper.mNode, defaultInspectWrapper.domEl, true);
+        }
+      }
+
+      applyTreeZoom() {
+        if (!this.lastTreeLayout) return;
+        const viewport = document.getElementById('tree-viewport');
+        const scaleHost = document.getElementById('tree-scale-host');
+        const canvas = document.getElementById('tree-canvas');
+        if (!viewport || !scaleHost || !canvas) return;
+
+        const { totalW, totalH } = this.lastTreeLayout;
+        let scale = 1;
+
+        if (this.zoomMode === 'fit') {
+          const availW = Math.max(200, viewport.clientWidth - 18);
+          const availH = Math.max(200, viewport.clientHeight - 18);
+          scale = Math.min(1, availW / totalW, availH / totalH);
+        } else {
+          scale = parseFloat(this.zoomMode) || 1;
+        }
+
+        scaleHost.style.width = `${Math.ceil(totalW * scale)}px`;
+        scaleHost.style.height = `${Math.ceil(totalH * scale)}px`;
+        canvas.style.transform = `scale(${scale})`;
+      }
+
+      inspectMCTSNode(mNode, cardEl, lockSelection) {
+        if (lockSelection) {
+          this.inspectedNode = mNode;
+          document.getElementById('btn-focus-subtree').disabled = false;
+          document.querySelectorAll('.micro-node').forEach(el => el.classList.remove('selected'));
+          cardEl.classList.add('selected');
+        }
+
+        // Compute true ply depth from full root
+        let ply = 0;
+        let ptr = mNode;
+        while (ptr.parent !== null) {
+          ply += 1;
+          ptr = ptr.parent;
+        }
+
+        const aiWinPct = mNode.visits > 0 ? ((mNode.aiWins / mNode.visits) * 100).toFixed(1) : '50.0';
+        const ucb = mNode.parent ? mNode.ucb1Score(1.414) : null;
+        const ucbStr = ucb !== null && Number.isFinite(ucb) ? ucb.toFixed(3) : '—';
+
+        const moveStr = mNode.move === null
+          ? 'ROOT'
+          : `${mNode.mover === AI ? 'AI' : 'You'} ${pitLabel(mNode.move)}`;
+        const turnStr = mNode.playerToMove === AI ? 'AI to move' : 'You to move';
+
+        let effectStr = 'Initial Position';
+        if (mNode.move !== null) {
+          if (mNode.meta.extraTurn) {
+            effectStr = 'Extra Turn (+1)';
+          } else if (mNode.meta.captured > 0) {
+            effectStr = `Capture (+${mNode.meta.captured} from ${pitLabel(mNode.meta.capturePit)})`;
+          } else {
+            effectStr = `Landed ${pitLabel(mNode.meta.landingPit)}`;
+          }
+        }
+
+        document.getElementById('inspector-fields').innerHTML = `
+          <span class="inspector-tag">PLY ${ply}</span>
+          <span>Move: <strong>${moveStr}</strong></span>
+          <span>Turn: <strong>${turnStr}</strong></span>
+          <span>Visits N: <strong>${mNode.visits.toLocaleString()}</strong></span>
+          <span>AI Win: <strong>${aiWinPct}%</strong></span>
+          <span>UCB1: <strong>${ucbStr}</strong></span>
+          <span>Effect: <strong>${effectStr}</strong></span>
+        `;
+
+        document.getElementById('inspector-board-state').textContent =
+          `AI: ${mNode.state[AI_STORE]} — YOU: ${mNode.state[HUMAN_STORE]}`;
+
+        // Highlight corresponding pit on the Mancala board
+        this.clearInspectedPit();
+        if (mNode.move !== null) {
+          const pitEl = document.getElementById(`pit-${mNode.move}`);
+          if (pitEl) pitEl.classList.add('pit-inspected');
+        }
+      }
+
+      finishGame() {
+        const you = this.board[HUMAN_STORE];
+        const ai = this.board[AI_STORE];
+
+        document.getElementById('score-you-final').textContent = you;
+        document.getElementById('score-ai-final').textContent = ai;
+
+        let heading = 'Game Over';
+        let desc = '';
+        if (you > ai) {
+          heading = 'Victory! You Outscored the MCTS AI';
+          desc = `Final Score: YOU ${you} — ${ai} AI`;
+        } else if (ai > you) {
+          heading = 'MCTS AI Wins the Match';
+          desc = `Final Score: AI ${ai} — ${you} YOU`;
+        } else {
+          heading = 'Draw Game (Tie)';
+          desc = `Both players finished with ${you} stones!`;
+        }
+
+        document.getElementById('gameover-heading').textContent = heading;
+        document.getElementById('gameover-desc').textContent = desc;
+        this.setBanner(`${heading} (${desc})`, 'gold');
+        this.appendLog(`${heading} — ${desc}`, 'system');
+        document.getElementById('gameover-modal').classList.add('open');
+      }
+
+      wait(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      window.mancalaGame = new MancalaGameApp();
+    });
+  </script>
+</body>
+</html>
